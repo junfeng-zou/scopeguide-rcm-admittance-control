@@ -1,0 +1,17 @@
+# Runtime results and logs
+results/
+*.log
+*.tmp
+
+# MATLAB editor and generated files
+*.asv
+*.m~
+*.autosave
+slprj/
+codegen/
+
+# OS and editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

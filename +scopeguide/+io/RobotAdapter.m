@@ -1,0 +1,746 @@
+classdef RobotAdapter < handle
+    %ROBOTADAPTER SI-unit adapter and sole guarded ServoJ command boundary.
+
+    properties (SetAccess = private)
+        Config
+        Backend
+        IsConnected = false
+        IsReadOnly = true
+        CommandAttemptCount = uint64(0)
+        CommandSentCount = uint64(0)
+        CommandFailureCount = uint64(0)
+        LastCommandTargetRad = nan(6, 1)
+        LastCommandResponseSec (1, 1) double = NaN
+        LastCommandSendSec (1, 1) double = NaN
+        LastRobotState = struct([])
+        ImmediateServoResponseCount = uint64(0)
+        LastAdapterMotionTransportDiagnostics = struct([])
+        ProgrammaticEnableAttempted = false
+        ProgrammaticEnableConfirmed = false
+        ProgrammaticEnableResponse (1, 1) string = ""
+        ProgrammaticSpeedFactorAttempted = false
+        ProgrammaticSpeedFactorConfirmed = false
+        ProgrammaticSpeedFactorResponse (1, 1) string = ""
+        ProgrammaticDisableAttempted = false
+        ProgrammaticDisableConfirmed = false
+        ProgrammaticDisableResponse (1, 1) string = ""
+    end
+
+    properties (Access = private)
+        ProgrammaticDisablePending = false
+    end
+
+    methods
+        function obj = RobotAdapter(cfg, backend)
+            validateRcmAdmittanceConfig(cfg);
+            obj.Config = cfg;
+            if nargin >= 2
+                obj.Backend = backend;
+            else
+                obj.Backend = [];
+            end
+        end
+
+        function connectReadOnly(obj)
+            if obj.IsConnected
+                return;
+            end
+            if string(obj.Config.runtime.Mode) ~= "live_dry_run" || ...
+                    obj.Config.robot.EnableMotion || ~obj.Config.robot.DryRun
+                error('scopeguide:robot:ReadOnlyModeRequired', ...
+                    ['connectReadOnly requires runtime.Mode=live_dry_run, ' ...
+                    'EnableMotion=false and DryRun=true.']);
+            end
+            if isempty(obj.Backend)
+                obj.Backend = ZJFDobotCR5( ...
+                    char(obj.Config.robot.IPAddress), ...
+                    obj.Config.robot.DashboardPort, ...
+                    obj.Config.robot.MovePort, ...
+                    obj.Config.robot.FeedbackPort);
+            end
+
+            try
+                obj.Backend.Connect();
+                timer = tic;
+                while true
+                    try
+                        snapshot = obj.Backend.GetStateSnapshot();
+                        if snapshot.feedbackSequence > 0
+                            break;
+                        end
+                    catch exception
+                        if ~strcmp(exception.identifier, ...
+                                'ZJFDobotCR5:NoFeedback')
+                            rethrow(exception);
+                        end
+                    end
+                    if toc(timer) > obj.Config.robot.InitialFeedbackTimeoutSec
+                        error('scopeguide:robot:InitialFeedbackTimeout', ...
+                            'No valid robot feedback arrived within %.3f s.', ...
+                            obj.Config.robot.InitialFeedbackTimeoutSec);
+                    end
+                    pause(0.01);
+                end
+                obj.IsConnected = true;
+            catch exception
+                obj.disconnect();
+                error('scopeguide:robot:ReadOnlyConnectionFailed', ...
+                    'Read-only robot connection failed: %s', ...
+                    exception.message);
+            end
+        end
+
+        function connectForMotion(obj, authorization)
+            if obj.IsConnected
+                return;
+            end
+            obj.requireMotionAuthorization(authorization);
+            if string(obj.Config.runtime.Mode) ~= "fixture_motion" || ...
+                    ~obj.Config.robot.EnableMotion || obj.Config.robot.DryRun
+                error('scopeguide:robot:FixtureMotionModeRequired', ...
+                    ['connectForMotion requires fixture_motion, ' ...
+                    'EnableMotion=true and DryRun=false.']);
+            end
+            obj.prepareBackend();
+            try
+                obj.Backend.Connect();
+                obj.waitForInitialFeedback();
+                obj.IsConnected = true;
+                obj.performStage08ProgrammaticInitialization();
+                obj.IsReadOnly = false;
+                state = obj.readState();
+                if ~state.IsValid
+                    error('scopeguide:robot:InvalidInitialMotionFeedback', ...
+                        'Initial robot feedback is not valid/fresh.');
+                end
+                % A new motion connection has no previously submitted
+                % ServoJ target.  Its first target is therefore checked
+                % against the latest measured joint position.
+                obj.LastCommandTargetRad(:) = NaN;
+                obj.ImmediateServoResponseCount = uint64(0);
+                obj.LastAdapterMotionTransportDiagnostics = struct([]);
+            catch exception
+                obj.disconnect();
+                error('scopeguide:robot:MotionConnectionFailed', ...
+                    'Stage 8 robot connection failed: %s', exception.message);
+            end
+        end
+
+        function state = readState(obj)
+            if ~obj.IsConnected
+                error('scopeguide:robot:NotConnected', ...
+                    'Connect the RobotAdapter before readState.');
+            end
+            snapshot = obj.Backend.GetStateSnapshot();
+            validateSnapshot(snapshot);
+
+            state = scopeguide.types.robotState();
+            state.JointPositionRad = double(snapshot.jointAnglesDeg(:)) * ...
+                obj.Config.robot.JointPositionScaleToRad;
+            state.JointVelocityRadSec = ...
+                double(snapshot.actualJointSpeedsDegSec(:)) * ...
+                obj.Config.robot.JointVelocityScaleToRadSec;
+            state.ControllerCartesianPoseRaw = ...
+                double(snapshot.cartesianPose(:));
+            state.ControllerPosePositionM = ...
+                state.ControllerCartesianPoseRaw(1:3) * ...
+                obj.Config.robot.ControllerPoseTranslationScaleToM;
+            state.ControllerPoseRpyRad = ...
+                state.ControllerCartesianPoseRaw(4:6) * ...
+                obj.Config.robot.ControllerPoseAngleScaleToRad;
+
+            quaternion = double(snapshot.actualQuaternionWxyz(:));
+            quaternion = quaternion / norm(quaternion);
+            quaternionRotation = ...
+                scopeguide.geometry.rotationMatrixFromQuaternionWxyz( ...
+                quaternion);
+            rpyRotation = scopeguide.geometry.dobotRpyToRotation( ...
+                state.ControllerCartesianPoseRaw(4:6), ...
+                obj.Config.robot.ControllerPoseAngleScaleToRad);
+            state.QuaternionBaseControllerWxyz = quaternion;
+            state.TBaseControllerPose = eye(4);
+            state.TBaseControllerPose(1:3, 1:3) = quaternionRotation;
+            state.TBaseControllerPose(1:3, 4) = ...
+                state.ControllerPosePositionM;
+            state.ControllerRpyQuaternionMismatchRad = ...
+                scopeguide.geometry.rotationDistance( ...
+                quaternionRotation, rpyRotation);
+
+            tcpSpeed = double(snapshot.actualTCPSpeed(:));
+            state.ActualTcpTwistBase = [ ...
+                tcpSpeed(1:3) * ...
+                    obj.Config.robot.TcpLinearVelocityScaleToMSec; ...
+                tcpSpeed(4:6) * ...
+                    obj.Config.robot.TcpAngularVelocityScaleToRadSec];
+            state.FeedbackSequence = uint64(snapshot.feedbackSequence);
+            state.HostMonotonicSec = double(snapshot.hostMonotonicSec);
+            state.SampleAgeSec = double(snapshot.feedbackAgeSec);
+            state.InvalidFeedbackByteCount = ...
+                uint64(snapshot.invalidFeedbackByteCount);
+            state.RobotMode = string(snapshot.robotMode);
+            state.ControllerPoseReference = ...
+                string(obj.Config.robot.ControllerPoseReference);
+            state.ControllerPoseUnitsVerified = ...
+                obj.Config.robot.ControllerPoseUnitsVerified;
+
+            switch state.ControllerPoseReference
+                case "flange"
+                    state.TBaseFlange = state.TBaseControllerPose;
+                    state.QuaternionBaseFlangeWxyz = quaternion;
+                case "endoscope"
+                    state.TBaseFlange = state.TBaseControllerPose / ...
+                        obj.Config.tool.TFlangeEndoscope;
+                    state.QuaternionBaseFlangeWxyz = ...
+                        rotationMatrixToQuaternionWxyz( ...
+                        state.TBaseFlange(1:3, 1:3));
+            end
+
+            finiteState = all(isfinite(state.JointPositionRad)) && ...
+                all(isfinite(state.JointVelocityRadSec)) && ...
+                all(isfinite(state.TBaseControllerPose), 'all') && ...
+                all(isfinite(state.ActualTcpTwistBase));
+            if ~finiteState
+                state.StatusCode = "NONFINITE_FEEDBACK";
+            elseif state.SampleAgeSec < 0 || ...
+                    state.SampleAgeSec > obj.Config.robot.FeedbackStaleSec
+                state.StatusCode = "STALE_FEEDBACK";
+            else
+                state.StatusCode = "OK";
+                state.IsValid = true;
+            end
+            obj.LastRobotState = state;
+        end
+
+        function result = sendServoTarget(obj, targetRad, authorization)
+            if nargin < 3
+                authorization = struct();
+            end
+            result = obj.sendServoTargetInternal( ...
+                targetRad, authorization, "regular_command");
+        end
+
+        function result = sendCurrentPositionHold(obj, authorization)
+            if isempty(obj.LastRobotState) || ...
+                    ~isfield(obj.LastRobotState, 'IsValid') || ...
+                    ~obj.LastRobotState.IsValid
+                state = obj.readState();
+            else
+                state = obj.LastRobotState;
+            end
+            result = obj.sendServoTargetInternal( ...
+                state.JointPositionRad, authorization, "feedback_hold");
+        end
+
+        function diagnostics = pollMotionCommandStatus(obj)
+            if isempty(obj.Backend) || ...
+                    ~ismethod(obj.Backend, 'PollMoveResponses')
+                diagnostics = obj.getMotionTransportDiagnostics();
+                return;
+            end
+            try
+                obj.Backend.PollMoveResponses();
+                diagnostics = obj.getMotionTransportDiagnostics();
+            catch exception
+                obj.CommandFailureCount = ...
+                    obj.CommandFailureCount + uint64(1);
+                rethrow(exception);
+            end
+        end
+
+        function diagnostics = getMotionTransportDiagnostics(obj)
+            backendDiagnostics = struct();
+            if ~isempty(obj.Backend) && ismethod(obj.Backend, ...
+                    'GetAsynchronousMoveDiagnostics')
+                backendDiagnostics = ...
+                    obj.Backend.GetAsynchronousMoveDiagnostics();
+            end
+            delayedOptionalCount = numericDiagnosticField( ...
+                backendDiagnostics, 'OptionalResponseCount', 0);
+            errorCount = numericDiagnosticField( ...
+                backendDiagnostics, 'ErrorCount', 0);
+            faultIdentifier = stringDiagnosticField( ...
+                backendDiagnostics, 'FaultIdentifier', "");
+            faultMessage = stringDiagnosticField( ...
+                backendDiagnostics, 'FaultMessage', "");
+            diagnostics = struct( ...
+                'Mode', "legacy_immediate_optional_response", ...
+                'ResponseExpected', false, ...
+                'ReplyDeadlinePolicy', ...
+                    "single_immediate_read_no_wait", ...
+                'CommandSentCount', double(obj.CommandSentCount), ...
+                'AcknowledgedCount', 0, ...
+                'ImmediateResponseCount', ...
+                    double(obj.ImmediateServoResponseCount), ...
+                'DelayedOptionalResponseCount', delayedOptionalCount, ...
+                'OptionalResponseCount', ...
+                    double(obj.ImmediateServoResponseCount) + ...
+                    delayedOptionalCount, ...
+                'LateResponseCount', 0, 'ErrorCount', errorCount, ...
+                'PendingResponseCount', 0, ...
+                'MaximumObservedPendingResponses', 0, ...
+                'MaximumAllowedPendingResponses', 0, ...
+                'NominalResponseDeadlineSec', NaN, ...
+                'HardResponseTimeoutSec', NaN, ...
+                'ResponseLatenciesSec', zeros(0, 1), ...
+                'OldestPendingAgeSec', NaN, ...
+                'FaultIdentifier', faultIdentifier, ...
+                'FaultMessage', faultMessage, ...
+                'LastResponse', ...
+                    obj.LastAdapterMotionTransportDiagnostics);
+        end
+
+        function diagnostics = getLastMotionCommandDiagnostics(obj)
+            % Return backend transport evidence without issuing a command.
+            diagnostics = obj.LastAdapterMotionTransportDiagnostics;
+            if ~isempty(diagnostics)
+                return;
+            end
+            if isempty(obj.Backend) || ...
+                    ~isprop(obj.Backend, 'LastMoveCommandDiagnostics')
+                return;
+            end
+            candidate = obj.Backend.LastMoveCommandDiagnostics;
+            if isstruct(candidate)
+                diagnostics = candidate;
+            end
+        end
+
+        function disconnect(obj)
+            backend = obj.Backend;
+            if ~isempty(backend)
+                if obj.ProgrammaticDisablePending
+                    try
+                        obj.disableProgrammatically();
+                    catch
+                        % A failed cleanup DisableRobot must not prevent the
+                        % TCP clients from being closed.
+                    end
+                end
+                try
+                    backend.Disconnect();
+                catch
+                    % Destructors and failed connection cleanup must not
+                    % obscure the original error.
+                end
+            end
+            obj.Backend = [];
+            obj.IsConnected = false;
+            obj.IsReadOnly = true;
+            obj.LastRobotState = struct([]);
+        end
+
+        function response = disableProgrammatically(obj)
+            response = "";
+            if ~obj.ProgrammaticDisablePending
+                return;
+            end
+            if isempty(obj.Backend) || ~ismethod(obj.Backend, 'Disable')
+                error('scopeguide:robot:DisableRobotUnavailable', ...
+                    'The Stage 8 backend must implement Disable().');
+            end
+            obj.ProgrammaticDisableAttempted = true;
+            rawResponse = obj.Backend.Disable();
+            response = string(char(rawResponse(:).'));
+            obj.ProgrammaticDisableResponse = response;
+            obj.ProgrammaticDisablePending = false;
+            obj.ProgrammaticDisableConfirmed = ...
+                obj.waitForRobotMode("DISABLED", ...
+                obj.Config.robot.InitialFeedbackTimeoutSec);
+            if ~obj.ProgrammaticDisableConfirmed
+                error('scopeguide:robot:DisableRobotNotConfirmed', ...
+                    ['DisableRobot() was sent, but 30004 did not confirm ' ...
+                     'DISABLED within %.3f s. Use the pendant or emergency ' ...
+                     'stop.'], obj.Config.robot.InitialFeedbackTimeoutSec);
+            end
+        end
+
+        function delete(obj)
+            obj.disconnect();
+        end
+    end
+
+    methods (Access = private)
+        function result = sendServoTargetInternal( ...
+                obj, targetRad, authorization, validationMode)
+            obj.CommandAttemptCount = obj.CommandAttemptCount + uint64(1);
+            if obj.Config.robot.DryRun
+                error('scopeguide:robot:DryRunMotionRejected', ...
+                    'Dry-run RobotAdapter refuses every ServoJ command.');
+            end
+            try
+                obj.requireMotionAuthorization(authorization);
+                obj.validateServoTarget(targetRad, validationMode);
+                startClock = tic;
+                if ~ismethod(obj.Backend, 'ServoJ')
+                    error('scopeguide:robot:ServoJUnavailable', ...
+                        ['The Stage 8 backend must implement ' ...
+                         'the validated ServoJ method.']);
+                end
+                servoTimeSec = obj.Config.runtime.NominalDtSec;
+                lookaheadTime = obj.Config.robot.ServoJLookaheadTime;
+                gain = obj.Config.robot.ServoJGain;
+                response = obj.Backend.ServoJ( ...
+                    rad2deg(double(targetRad(:))).', servoTimeSec, ...
+                    lookaheadTime, gain);
+                sendSec = toc(startClock);
+                responseObserved = ~isempty(response);
+                responseText = string(char(response(:).'));
+                transport = struct( ...
+                    'Mode', "legacy_immediate_optional_response", ...
+                    'ResponseExpected', false, ...
+                    'ReplyDeadlinePolicy', ...
+                        "single_immediate_read_no_wait", ...
+                    'Submitted', true, ...
+                    'ResponseConfirmed', responseObserved, ...
+                    'ImmediateResponse', responseText, ...
+                    'WriteAndImmediateReadElapsedSec', sendSec, ...
+                    'PendingResponseCount', 0);
+                obj.CommandSentCount = obj.CommandSentCount + uint64(1);
+                if responseObserved
+                    obj.ImmediateServoResponseCount = ...
+                        obj.ImmediateServoResponseCount + uint64(1);
+                end
+                transport.Sequence = double(obj.CommandSentCount);
+                obj.LastCommandTargetRad = double(targetRad(:));
+                obj.LastCommandResponseSec = NaN;
+                obj.LastCommandSendSec = sendSec;
+                obj.LastAdapterMotionTransportDiagnostics = transport;
+                result = struct('Submitted', true, ...
+                    'Accepted', responseObserved, ...
+                    'ResponseConfirmed', responseObserved, ...
+                    'Transport', transport, ...
+                    'ServoTimeSec', servoTimeSec, ...
+                    'ServoLookaheadTime', lookaheadTime, ...
+                    'ServoGain', gain, ...
+                    'SendDurationSec', sendSec, ...
+                    'ResponseDurationSec', NaN, ...
+                    'TargetRad', double(targetRad(:)));
+            catch exception
+                obj.CommandFailureCount = ...
+                    obj.CommandFailureCount + uint64(1);
+                obj.LastAdapterMotionTransportDiagnostics = struct( ...
+                    'Mode', "legacy_immediate_optional_response", ...
+                    'ResponseExpected', false, ...
+                    'ReplyDeadlinePolicy', ...
+                        "single_immediate_read_no_wait", ...
+                    'Submitted', false, 'WriteFailed', true, ...
+                    'PendingResponseCount', 0, ...
+                    'FaultIdentifier', string(exception.identifier), ...
+                    'FaultMessage', string(exception.message));
+                rethrow(exception);
+            end
+        end
+        function prepareBackend(obj)
+            if isempty(obj.Backend)
+                obj.Backend = ZJFDobotCR5( ...
+                    char(obj.Config.robot.IPAddress), ...
+                    obj.Config.robot.DashboardPort, ...
+                    obj.Config.robot.MovePort, ...
+                    obj.Config.robot.FeedbackPort);
+            end
+            if isprop(obj.Backend, 'LogEveryCommand')
+                obj.Backend.LogEveryCommand = false;
+            end
+        end
+
+        function waitForInitialFeedback(obj)
+            timer = tic;
+            while true
+                try
+                    snapshot = obj.Backend.GetStateSnapshot();
+                    if snapshot.feedbackSequence > 0
+                        break;
+                    end
+                catch exception
+                    if ~strcmp(exception.identifier, 'ZJFDobotCR5:NoFeedback')
+                        rethrow(exception);
+                    end
+                end
+                if toc(timer) > obj.Config.robot.InitialFeedbackTimeoutSec
+                    error('scopeguide:robot:InitialFeedbackTimeout', ...
+                        'No valid robot feedback arrived within %.3f s.', ...
+                        obj.Config.robot.InitialFeedbackTimeoutSec);
+                end
+                pause(0.01);
+            end
+        end
+
+        function performStage08ProgrammaticInitialization(obj)
+            stage08 = obj.Config.stage08;
+            if ~stage08.ProgrammaticRobotEnable
+                error('scopeguide:robot:ProgrammaticEnableRequired', ...
+                    ['Stage 8 motion requires the validated software ' ...
+                     'EnableRobot/SpeedFactor initialization sequence.']);
+            end
+            requiredMethods = {'Enable', 'SetSpeedRatio', 'Disable'};
+            for index = 1:numel(requiredMethods)
+                if ~ismethod(obj.Backend, requiredMethods{index})
+                    error('scopeguide:robot:ProgrammaticMethodUnavailable', ...
+                        'The Stage 8 backend must implement %s().', ...
+                        requiredMethods{index});
+                end
+            end
+
+            % Set this before Enable(): if the write has an uncertain result,
+            % failed initialization cleanup still attempts DisableRobot().
+            obj.ProgrammaticDisablePending = stage08.DisableRobotOnExit;
+            obj.ProgrammaticEnableAttempted = true;
+            enableResponse = obj.Backend.Enable(stage08.EnablePayloadKg);
+            obj.ProgrammaticEnableResponse = ...
+                string(char(enableResponse(:).'));
+
+            obj.ProgrammaticSpeedFactorAttempted = true;
+            speedResponse = ...
+                obj.Backend.SetSpeedRatio(stage08.SpeedFactorPercent);
+            obj.ProgrammaticSpeedFactorResponse = ...
+                string(char(speedResponse(:).'));
+            pause(stage08.PostEnablePauseSec);
+
+            timer = tic;
+            lastMode = "UNKNOWN";
+            lastSpeedRatio = NaN;
+            while toc(timer) <= obj.Config.robot.InitialFeedbackTimeoutSec
+                try
+                    snapshot = obj.Backend.GetStateSnapshot();
+                    lastMode = string(snapshot.robotMode);
+                    if isfield(snapshot, 'currentSpeedRatio')
+                        lastSpeedRatio = double(snapshot.currentSpeedRatio);
+                    end
+                    modeConfirmed = any(lastMode == ...
+                        string(stage08.RequiredRobotModes));
+                    speedConfirmed = isfinite(lastSpeedRatio) && ...
+                        abs(lastSpeedRatio - stage08.SpeedFactorPercent) <= ...
+                        stage08.SpeedFactorFeedbackTolerance;
+                    feedbackFresh = isfinite(snapshot.feedbackAgeSec) && ...
+                        snapshot.feedbackAgeSec >= 0 && ...
+                        snapshot.feedbackAgeSec <= ...
+                        obj.Config.robot.FeedbackStaleSec;
+                    if modeConfirmed && speedConfirmed && feedbackFresh
+                        obj.ProgrammaticEnableConfirmed = true;
+                        obj.ProgrammaticSpeedFactorConfirmed = true;
+                        return;
+                    end
+                catch exception
+                    if ~strcmp(exception.identifier, 'ZJFDobotCR5:NoFeedback')
+                        rethrow(exception);
+                    end
+                end
+                pause(0.01);
+            end
+            error('scopeguide:robot:ProgrammaticEnableNotConfirmed', ...
+                ['EnableRobot(%.3f) and SpeedFactor(%d) were sent, but ' ...
+                 '30004 reported mode=%s and SpeedRatio=%.3f after %.3f s.'], ...
+                stage08.EnablePayloadKg, stage08.SpeedFactorPercent, ...
+                lastMode, lastSpeedRatio, ...
+                obj.Config.robot.InitialFeedbackTimeoutSec);
+        end
+
+        function confirmed = waitForRobotMode(obj, requiredMode, timeoutSec)
+            confirmed = false;
+            timer = tic;
+            while toc(timer) <= timeoutSec
+                try
+                    snapshot = obj.Backend.GetStateSnapshot();
+                    if string(snapshot.robotMode) == string(requiredMode) && ...
+                            isfinite(snapshot.feedbackAgeSec) && ...
+                            snapshot.feedbackAgeSec >= 0 && ...
+                            snapshot.feedbackAgeSec <= ...
+                            obj.Config.robot.FeedbackStaleSec
+                        confirmed = true;
+                        return;
+                    end
+                catch exception
+                    if ~strcmp(exception.identifier, 'ZJFDobotCR5:NoFeedback')
+                        rethrow(exception);
+                    end
+                end
+                pause(0.01);
+            end
+        end
+
+        function requireMotionAuthorization(obj, authorization)
+            valid = isstruct(authorization) && ...
+                isfield(authorization, 'CommissioningAllowed') && ...
+                islogical(authorization.CommissioningAllowed) && ...
+                isscalar(authorization.CommissioningAllowed) && ...
+                authorization.CommissioningAllowed && ...
+                isfield(authorization, 'Mode') && ...
+                string(authorization.Mode) == "fixture_motion" && ...
+                isfield(authorization, 'DofMode') && ...
+                string(authorization.DofMode) == ...
+                string(obj.Config.stage08.DofMode);
+            if ~valid
+                error('scopeguide:robot:MotionAuthorizationRejected', ...
+                    'Stage 8 commissioning authorization is invalid.');
+            end
+        end
+
+        function validateServoTarget(obj, targetRad, validationMode)
+            target = double(targetRad(:));
+            if ~obj.IsConnected || obj.IsReadOnly
+                error('scopeguide:robot:MotionConnectionRequired', ...
+                    'ServoJ requires a connected motion-mode adapter.');
+            end
+            if numel(target) ~= 6 || any(~isfinite(target))
+                error('scopeguide:robot:InvalidServoTarget', ...
+                    'ServoJ target must contain six finite radians.');
+            end
+            if isempty(obj.LastRobotState) || ...
+                    ~isfield(obj.LastRobotState, 'IsValid') || ...
+                    ~obj.LastRobotState.IsValid
+                error('scopeguide:robot:FreshFeedbackRequired', ...
+                    'Fresh valid robot feedback is required before ServoJ.');
+            end
+            state = obj.LastRobotState;
+            if ~any(string(state.RobotMode) == ...
+                    string(obj.Config.stage08.RequiredRobotModes))
+                error('scopeguide:robot:RobotModeRejectsServo', ...
+                    'Robot mode %s does not permit Stage 8 ServoJ.', ...
+                    string(state.RobotMode));
+            end
+            lower = double(obj.Config.kinematics.JointLowerLimitRad(:)) + ...
+                obj.Config.stage08.JointLimitMarginRad;
+            upper = double(obj.Config.kinematics.JointUpperLimitRad(:)) - ...
+                obj.Config.stage08.JointLimitMarginRad;
+            if any(target < lower) || any(target > upper)
+                error('scopeguide:robot:ServoTargetOutsideJointLimits', ...
+                    'ServoJ target violates the Stage 8 joint-limit margin.');
+            end
+            validationMode = string(validationMode);
+            stepReference = state.JointPositionRad(:);
+            referenceDescription = "latest robot feedback";
+            stepLimitRad = obj.Config.stage08.MaximumServoTargetStepRad;
+            if validationMode == "regular_command" && ...
+                    numel(obj.LastCommandTargetRad) == 6 && ...
+                    all(isfinite(obj.LastCommandTargetRad(:)))
+                stepReference = obj.LastCommandTargetRad(:);
+                referenceDescription = "last submitted ServoJ target";
+            elseif validationMode == "feedback_hold" && ...
+                    numel(obj.LastCommandTargetRad) == 6 && ...
+                    all(isfinite(obj.LastCommandTargetRad(:)))
+                commandFeedbackGap = max(abs( ...
+                    obj.LastCommandTargetRad(:) - ...
+                    state.JointPositionRad(:)));
+                if commandFeedbackGap > ...
+                        obj.Config.stage08.MaximumTargetFeedbackErrorRad
+                    error('scopeguide:robot:HoldTrackingGapTooLarge', ...
+                        ['Cannot issue feedback hold because the last ' ...
+                        'submitted target is %.6f deg from feedback, ' ...
+                        'exceeding %.6f deg.'], ...
+                        rad2deg(commandFeedbackGap), ...
+                        rad2deg(obj.Config.stage08. ...
+                        MaximumTargetFeedbackErrorRad));
+                end
+            elseif ~any(validationMode == ...
+                    ["regular_command", "feedback_hold"])
+                error('scopeguide:robot:InvalidServoValidationMode', ...
+                    'Unknown ServoJ validation mode %s.', validationMode);
+            end
+            targetStep = abs(target - stepReference);
+            if any(targetStep > stepLimitRad)
+                error('scopeguide:robot:ServoTargetStepTooLarge', ...
+                    ['ServoJ target step from the %s is %.6f deg, ' ...
+                    'exceeding the Stage 8 per-command bound %.6f deg.'], ...
+                    referenceDescription, ...
+                    rad2deg(max(targetStep)), ...
+                    rad2deg(stepLimitRad));
+            end
+        end
+    end
+end
+
+function validateSnapshot(snapshot)
+required = {'feedbackSequence', 'hostMonotonicSec', 'feedbackAgeSec', ...
+    'invalidFeedbackByteCount', 'robotMode', 'jointAnglesDeg', ...
+    'cartesianPose', 'actualJointSpeedsDegSec', 'actualTCPSpeed', ...
+    'actualQuaternionWxyz'};
+for index = 1:numel(required)
+    if ~isstruct(snapshot) || ~isfield(snapshot, required{index})
+        error('scopeguide:robot:InvalidSnapshot', ...
+            'Robot snapshot is missing field %s.', required{index});
+    end
+end
+if numel(snapshot.jointAnglesDeg) ~= 6 || ...
+        numel(snapshot.cartesianPose) ~= 6 || ...
+        numel(snapshot.actualJointSpeedsDegSec) ~= 6 || ...
+        numel(snapshot.actualTCPSpeed) ~= 6 || ...
+        numel(snapshot.actualQuaternionWxyz) ~= 4 || ...
+        any(~isfinite(double(snapshot.jointAnglesDeg(:)))) || ...
+        any(~isfinite(double(snapshot.cartesianPose(:)))) || ...
+        any(~isfinite(double(snapshot.actualJointSpeedsDegSec(:)))) || ...
+        any(~isfinite(double(snapshot.actualTCPSpeed(:)))) || ...
+        any(~isfinite(double(snapshot.actualQuaternionWxyz(:)))) || ...
+        norm(double(snapshot.actualQuaternionWxyz(:))) < 1e-9
+    error('scopeguide:robot:InvalidSnapshot', ...
+        'Robot snapshot contains invalid numeric arrays.');
+end
+scalars = [double(snapshot.feedbackSequence), ...
+    double(snapshot.hostMonotonicSec), double(snapshot.feedbackAgeSec), ...
+    double(snapshot.invalidFeedbackByteCount)];
+if any(~isfinite(scalars)) || snapshot.feedbackSequence < 1
+    error('scopeguide:robot:InvalidSnapshot', ...
+        'Robot snapshot sequence/timestamps are invalid.');
+end
+end
+
+function quaternion = rotationMatrixToQuaternionWxyz(rotation)
+% Stable branch implementation used only after pose semantics are verified.
+traceValue = trace(rotation);
+if traceValue > 0
+    scale = 2 * sqrt(traceValue + 1);
+    quaternion = [0.25 * scale; ...
+        (rotation(3, 2) - rotation(2, 3)) / scale; ...
+        (rotation(1, 3) - rotation(3, 1)) / scale; ...
+        (rotation(2, 1) - rotation(1, 2)) / scale];
+else
+    [~, index] = max(diag(rotation));
+    switch index
+        case 1
+            scale = 2 * sqrt(1 + rotation(1, 1) - ...
+                rotation(2, 2) - rotation(3, 3));
+            quaternion = [(rotation(3, 2) - rotation(2, 3)) / scale; ...
+                0.25 * scale; (rotation(1, 2) + rotation(2, 1)) / scale; ...
+                (rotation(1, 3) + rotation(3, 1)) / scale];
+        case 2
+            scale = 2 * sqrt(1 + rotation(2, 2) - ...
+                rotation(1, 1) - rotation(3, 3));
+            quaternion = [(rotation(1, 3) - rotation(3, 1)) / scale; ...
+                (rotation(1, 2) + rotation(2, 1)) / scale; ...
+                0.25 * scale; (rotation(2, 3) + rotation(3, 2)) / scale];
+        otherwise
+            scale = 2 * sqrt(1 + rotation(3, 3) - ...
+                rotation(1, 1) - rotation(2, 2));
+            quaternion = [(rotation(2, 1) - rotation(1, 2)) / scale; ...
+                (rotation(1, 3) + rotation(3, 1)) / scale; ...
+                (rotation(2, 3) + rotation(3, 2)) / scale; ...
+                0.25 * scale];
+    end
+end
+
+quaternion = quaternion / norm(quaternion);
+if quaternion(1) < 0
+    quaternion = -quaternion;
+end
+end
+
+function value = numericDiagnosticField(diagnostics, fieldName, fallback)
+value = fallback;
+if ~isstruct(diagnostics) || ~isfield(diagnostics, fieldName)
+    return;
+end
+candidate = double(diagnostics.(fieldName));
+if isscalar(candidate) && isfinite(candidate) && candidate >= 0
+    value = candidate;
+end
+end
+
+function value = stringDiagnosticField(diagnostics, fieldName, fallback)
+value = string(fallback);
+if ~isstruct(diagnostics) || ~isfield(diagnostics, fieldName)
+    return;
+end
+candidate = string(diagnostics.(fieldName));
+if isscalar(candidate) && ~ismissing(candidate)
+    value = candidate;
+end
+end
