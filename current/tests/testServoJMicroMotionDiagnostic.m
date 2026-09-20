@@ -1,0 +1,86 @@
+function tests = testServoJMicroMotionDiagnostic
+tests = functiontests(localfunctions);
+end
+
+function setupOnce(testCase)
+root = fileparts(fileparts(mfilename('fullpath')));
+addpath(root);
+addpath(fullfile(root, 'robot'));
+testCase.TestData.Root = root;
+end
+
+function testTrajectoryIsSmoothSingleJointOutAndBack(testCase)
+q0 = [10, 20, -30, 40, 50, 60];
+trajectory = scopeguide.diagnostics.buildServoJMicroMotionTrajectory( ...
+    q0, 4, 0.10, 20, [1, 1, 1, 1, 1]);
+
+verifyEqual(testCase, trajectory.ScheduledTimeSec(1), 0, ...
+    'AbsTol', 1e-12);
+verifyEqual(testCase, trajectory.ScheduledTimeSec(end), 5, ...
+    'AbsTol', 1e-12);
+verifyEqual(testCase, trajectory.TargetJointDeg(1, :), q0, ...
+    'AbsTol', 1e-12);
+verifyEqual(testCase, trajectory.TargetJointDeg(end, :), q0, ...
+    'AbsTol', 1e-12);
+verifyEqual(testCase, max(trajectory.TargetJointDeg(:, 4) - q0(4)), ...
+    0.10, 'AbsTol', 1e-12);
+verifyEqual(testCase, trajectory.TargetJointDeg(:, [1:3, 5:6]), ...
+    repmat(q0([1:3, 5:6]), height(trajectory), 1), ...
+    'AbsTol', 1e-12);
+verifyTrue(testCase, any(trajectory.Phase == "OUTBOUND_RAMP"));
+verifyTrue(testCase, any(trajectory.Phase == "RETURN_RAMP"));
+
+delta = diff(trajectory.TargetJointDeg(:, 4));
+verifyLessThanOrEqual(testCase, max(abs(delta)), 0.01);
+end
+
+function testNegativeOffsetReturnsToInitialPosition(testCase)
+trajectory = scopeguide.diagnostics.buildServoJMicroMotionTrajectory( ...
+    zeros(1, 6), 2, -0.15, 20, [0.5, 1, 0.5, 1, 0.5]);
+verifyEqual(testCase, min(trajectory.TargetJointDeg(:, 2)), -0.15, ...
+    'AbsTol', 1e-12);
+verifyEqual(testCase, trajectory.TargetJointDeg(end, :), zeros(1, 6), ...
+    'AbsTol', 1e-12);
+end
+
+function testPhysicalDiagnosticFailsClosedBeforeConnection(testCase)
+verifyError(testCase, @() run_servoj_micro_motion_diagnostic(), ...
+    'scopeguide:servoJMicro:PhysicalMotionNotArmed');
+end
+
+function testDiagnosticUsesExplicitProgrammaticInitialization(testCase)
+source = fileread(fullfile(testCase.TestData.Root, ...
+    'run_servoj_micro_motion_diagnostic.m'));
+verifyFalse(testCase, contains(source, 'ForceSensorAdapter'));
+verifyFalse(testCase, contains(source, 'RcmConstrainedQpController'));
+verifyTrue(testCase, contains(source, 'robot.ServoJ('));
+verifyFalse(testCase, contains(source, 'robot.ServoJNonblocking('));
+verifyFalse(testCase, contains(source, 'robot.GetStateSnapshot('));
+verifyFalse(testCase, contains(source, 'robot.PollMoveResponses('));
+verifyFalse(testCase, contains(source, ...
+    'robot.GetAsynchronousMoveDiagnostics('));
+verifyTrue(testCase, contains(source, 'robot.JointAngles'));
+verifyTrue(testCase, contains(source, 'robot.ActualJointSpeeds'));
+verifyTrue(testCase, contains(source, ...
+    'robot.Enable(options.EnablePayloadKg)'));
+verifyTrue(testCase, contains(source, ...
+    'robot.SetSpeedRatio(options.SpeedRatioPercent)'));
+verifyTrue(testCase, contains(source, ...
+    'pause(options.PostEnablePauseSec)'));
+verifyTrue(testCase, contains(source, ...
+    'RUN_SERVOJ_MICRO_MOTION_DIAGNOSTIC'));
+verifyTrue(testCase, contains(source, ...
+    'ENABLE_ROBOT_FROM_MICRO_DIAGNOSTIC'));
+verifyFalse(testCase, contains(source, ...
+    'ProgrammaticEnableRequiresDisabled'));
+end
+
+function testProgrammaticEnableRequiresSecondConfirmation(testCase)
+verifyError(testCase, @() run_servoj_micro_motion_diagnostic( ...
+    ArmPhysicalMotion=true, ...
+    MotionConfirmation="RUN_SERVOJ_MICRO_MOTION_DIAGNOSTIC", ...
+    RobotInTcpModeConfirmed=true, ...
+    FixtureAndClearanceConfirmed=true, ...
+    SecondObserverPresent=true), ...
+    'scopeguide:servoJMicro:EnableConfirmationMismatch');
+end

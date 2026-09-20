@@ -15,10 +15,3 @@ codegen/
 Thumbs.db
 .vscode/
 .idea/
-
-# Local recordings, editor state and generated reports
-*.mp4
-*.fig
-*.zip
-*.bak
-__pycache__/

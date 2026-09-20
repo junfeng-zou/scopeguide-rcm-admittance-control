@@ -1,0 +1,688 @@
+{
+  "scope": "offline only; no HEX-H, camera, or Nova5 connection",
+  "config": "/home/zjf/vision-force-safety/configs/perception.yaml",
+  "calibration_source": "/home/zjf/vision-force-safety/matlab/calibration/data/hex_h_tool_calibration_20260722_182635/calibration_without_pose10.json",
+  "raw_csv": "/home/zjf/vision-force-safety/matlab/calibration/data/hex_h_tool_calibration_20260722_182635/raw_samples.csv",
+  "calibration": {
+    "bias_sensor": [
+      0.475504989,
+      1.057346418,
+      18.220651875,
+      0.576897936,
+      -0.011842126,
+      -0.07793329
+    ],
+    "mass_kg": 1.201666831,
+    "com_sensor_m": [
+      -0.000953888,
+      -0.060234919,
+      0.043601825
+    ],
+    "gravity_base_m_s2": [
+      0.0,
+      0.0,
+      -9.80665
+    ],
+    "gravity_force_sign": 1.0
+  },
+  "retained_pose_indices": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "excluded_pose_indices": [
+    10
+  ],
+  "zero_pose_gravity_direction_sensor": [
+    1.9597514996927152e-07,
+    -0.9999994337401465,
+    0.0010641989230288917
+  ],
+  "zero_pose_gravity_direction_error_deg": 0.060974119396786514,
+  "retained_summary": {
+    "steady_sample_count": 6207,
+    "maximum_pose_mean_force_norm_n": 0.8018667573459577,
+    "maximum_pose_mean_torque_norm_nm": 0.15471566411270377,
+    "maximum_slow_force_norm_n": 1.4095807788021106,
+    "false_contact_frames": 0,
+    "false_contact_frame_ratio": 0.0,
+    "minimum_force_quality": 1.0,
+    "stationary_row_ratio": 0.9870833333333333,
+    "maximum_force_rate_n_s": 134.400179678798,
+    "maximum_pose_force_rate_percentile_99_n_s": 102.13896707275752
+  },
+  "pose_results": {
+    "1": {
+      "sample_count": 792,
+      "steady_sample_count": 692,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        -0.3151056219907485,
+        0.05226195457308982,
+        -0.7355048821255675,
+        0.05191824463791998,
+        -0.002288562920188568,
+        -0.0031489879546758555
+      ],
+      "external_sensor_std": [
+        0.10331017802726561,
+        0.0732484047184811,
+        0.46069270902672466,
+        0.006222805204998472,
+        0.008688398331098312,
+        0.004076428514269448
+      ],
+      "external_sensor_rms": [
+        0.3315857694384373,
+        0.08993824172338012,
+        0.8676972408611493,
+        0.05228930552579155,
+        0.008978680232112875,
+        0.0051487261701813015
+      ],
+      "slow_filtered_tool_mean": [
+        0.3159770630071764,
+        -0.05208956693327003,
+        -0.7301597219892245,
+        -0.05199792295038647,
+        0.002306320680695026,
+        -0.00313667449521108
+      ],
+      "slow_filtered_tool_std": [
+        0.04646409180255045,
+        0.031178481552752012,
+        0.23818800039050894,
+        0.0027230769418995814,
+        0.004176099573943063,
+        0.001731071924484663
+      ],
+      "mean_external_force_norm_n": 0.8018667573459577,
+      "mean_external_torque_norm_nm": 0.052063977678057434,
+      "maximum_slow_force_norm_n": 1.3653504649790327,
+      "state_counts": {
+        "NO_CONTACT": 692
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 86.89608389193455,
+      "maximum_force_rate_n_s": 98.8991423847497,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 792,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 792,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 792
+      }
+    },
+    "2": {
+      "sample_count": 792,
+      "steady_sample_count": 692,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        0.04313046236486977,
+        -0.07197374182152522,
+        -0.3349170965903119,
+        0.037012223761707756,
+        -0.01101209880413843,
+        -0.007825651020155299
+      ],
+      "external_sensor_std": [
+        0.10609405226647144,
+        0.07160794787302639,
+        0.48424116582764,
+        0.006228414835003217,
+        0.009629020299874674,
+        0.00485665715487763
+      ],
+      "external_sensor_rms": [
+        0.11445487708885735,
+        0.10149141708480856,
+        0.5884896860625352,
+        0.03753187711367945,
+        0.014623623573253763,
+        0.009208357463609079
+      ],
+      "slow_filtered_tool_mean": [
+        -0.04159119653202103,
+        0.07215437912467407,
+        -0.34388638572989233,
+        -0.036923244828877766,
+        0.01085286888452956,
+        -0.007808768456695639
+      ],
+      "slow_filtered_tool_std": [
+        0.045287855188909654,
+        0.02875997444331116,
+        0.256769179489004,
+        0.0024975788402740026,
+        0.004699017799427194,
+        0.002031259929887188
+      ],
+      "mean_external_force_norm_n": 0.34526789292386184,
+      "mean_external_torque_norm_nm": 0.03940065788471163,
+      "maximum_slow_force_norm_n": 1.0641285198795736,
+      "state_counts": {
+        "NO_CONTACT": 692
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 83.06200041416379,
+      "maximum_force_rate_n_s": 123.92281971118234,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 792,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 792,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 792
+      }
+    },
+    "3": {
+      "sample_count": 793,
+      "steady_sample_count": 693,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        0.18665812369232002,
+        -0.1002601219429628,
+        -0.1827480005482571,
+        0.015441407683276927,
+        -0.005959318366151813,
+        -0.021522113224891348
+      ],
+      "external_sensor_std": [
+        0.11633709848182695,
+        0.07314153077337947,
+        0.45651852057387043,
+        0.005770083504137853,
+        0.009452014040006573,
+        0.005019949386893322
+      ],
+      "external_sensor_rms": [
+        0.2199000808993038,
+        0.12407278498867684,
+        0.49143184330410017,
+        0.016482805944153002,
+        0.011168040393509283,
+        0.02209897929841365
+      ],
+      "slow_filtered_tool_mean": [
+        -0.1874913107036909,
+        0.10050166168284828,
+        -0.1814843493848711,
+        -0.015449534674360074,
+        0.006018837701489668,
+        -0.02152779195232123
+      ],
+      "slow_filtered_tool_std": [
+        0.05459278519152532,
+        0.030852065145117673,
+        0.252616047339513,
+        0.002009673501428102,
+        0.00469952763873297,
+        0.0020630761977249432
+      ],
+      "mean_external_force_norm_n": 0.2798038221624948,
+      "mean_external_torque_norm_nm": 0.0271505415101681,
+      "maximum_slow_force_norm_n": 0.6559971751918634,
+      "state_counts": {
+        "NO_CONTACT": 693
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 79.80579487941995,
+      "maximum_force_rate_n_s": 106.78470665127546,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 793,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 793,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 793
+      }
+    },
+    "4": {
+      "sample_count": 793,
+      "steady_sample_count": 693,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        0.6404532319118384,
+        0.13629291498590554,
+        -0.09024936933545397,
+        0.11913920562955853,
+        0.01061502595656141,
+        0.09218392325008092
+      ],
+      "external_sensor_std": [
+        0.11768241489849576,
+        0.07485326161577499,
+        0.5021981870494114,
+        0.006272724193089756,
+        0.009654336970172787,
+        0.004444607359813515
+      ],
+      "external_sensor_rms": [
+        0.6511601252365707,
+        0.15546923907076332,
+        0.509886299502847,
+        0.11930398404482442,
+        0.014344005775193805,
+        0.0922908540134819
+      ],
+      "slow_filtered_tool_mean": [
+        -0.6412185849617834,
+        -0.13644917200284712,
+        -0.07804270395076969,
+        -0.11922135225306564,
+        -0.010490452906400336,
+        0.09222740805941396
+      ],
+      "slow_filtered_tool_std": [
+        0.06083079908593826,
+        0.03551084920949207,
+        0.26991901001368623,
+        0.002705605479453337,
+        0.004995494016550636,
+        0.0016173472395297865
+      ],
+      "mean_external_force_norm_n": 0.6609849087589834,
+      "mean_external_torque_norm_nm": 0.15101226705098336,
+      "maximum_slow_force_norm_n": 0.9196133137205967,
+      "state_counts": {
+        "NO_CONTACT": 693
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 85.82416599489054,
+      "maximum_force_rate_n_s": 134.400179678798,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 793,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 793,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 793
+      }
+    },
+    "5": {
+      "sample_count": 795,
+      "steady_sample_count": 695,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        0.047430835525071546,
+        0.21071030245966846,
+        0.37792089701657056,
+        -0.029878817042932496,
+        -0.0008381907743731159,
+        0.020071451354147576
+      ],
+      "external_sensor_std": [
+        0.118015854707752,
+        0.07581194631800188,
+        0.4581516004583175,
+        0.006067445864308692,
+        0.009672938755624173,
+        0.005118060352193504
+      ],
+      "external_sensor_rms": [
+        0.12711170758240536,
+        0.22391519165345888,
+        0.5936540026471645,
+        0.03048777849503049,
+        0.009702251335348492,
+        0.02071279824751959
+      ],
+      "slow_filtered_tool_mean": [
+        -0.04646765923447996,
+        -0.21095656112047195,
+        0.37667228509525225,
+        0.029905151663609582,
+        0.0006804771877919828,
+        0.02012568289093561
+      ],
+      "slow_filtered_tool_std": [
+        0.05116072834389953,
+        0.03237204278057836,
+        0.2240407375903084,
+        0.0028012346001344787,
+        0.0045688621686832106,
+        0.0019318266522250313
+      ],
+      "mean_external_force_norm_n": 0.43528464264554595,
+      "mean_external_torque_norm_nm": 0.03600429739796612,
+      "maximum_slow_force_norm_n": 0.8676157511846838,
+      "state_counts": {
+        "NO_CONTACT": 695
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 92.33496267830992,
+      "maximum_force_rate_n_s": 117.4856609157964,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 795,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 795,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 795
+      }
+    },
+    "6": {
+      "sample_count": 785,
+      "steady_sample_count": 685,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        0.041435482590186284,
+        0.60070875468365,
+        0.4934606580642794,
+        -0.141400382205563,
+        -0.016358958534542792,
+        0.06062386584193375
+      ],
+      "external_sensor_std": [
+        0.11284375110716695,
+        0.07544361375698103,
+        0.4674452460927761,
+        0.006128619520841631,
+        0.01004359590244518,
+        0.00438334920095731
+      ],
+      "external_sensor_rms": [
+        0.12013335099211463,
+        0.6054208765003679,
+        0.6794773680305314,
+        0.14153294045213288,
+        0.019192240149012774,
+        0.06078189541769759
+      ],
+      "slow_filtered_tool_mean": [
+        -0.04325783696281467,
+        -0.6005743510453664,
+        0.4917632901128365,
+        0.14140035386499608,
+        0.016440331033274604,
+        0.060610975168219824
+      ],
+      "slow_filtered_tool_std": [
+        0.04757935194819897,
+        0.024868648896093016,
+        0.23951525743778765,
+        0.002743686087989263,
+        0.00489217459710517,
+        0.0017764971658412675
+      ],
+      "mean_external_force_norm_n": 0.7785058305679509,
+      "mean_external_torque_norm_nm": 0.15471566411270377,
+      "maximum_slow_force_norm_n": 1.2893858047611904,
+      "state_counts": {
+        "NO_CONTACT": 685
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 83.35493864288246,
+      "maximum_force_rate_n_s": 101.97989922086788,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 785,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 785,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 785
+      }
+    },
+    "7": {
+      "sample_count": 785,
+      "steady_sample_count": 685,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        -0.06314464944794503,
+        -0.19809272583677173,
+        -0.25396967504143664,
+        0.02920539331234697,
+        -0.008395794026096871,
+        -0.012704579777537368
+      ],
+      "external_sensor_std": [
+        0.1115424221136454,
+        0.07495605167288474,
+        0.4431397117399867,
+        0.006093542910549726,
+        0.009727626168853778,
+        0.005249444515007692
+      ],
+      "external_sensor_rms": [
+        0.128104627557991,
+        0.21178039487615474,
+        0.5104769576927026,
+        0.02983340506051933,
+        0.012844373360574856,
+        0.013744918563889767
+      ],
+      "slow_filtered_tool_mean": [
+        0.06351772796211877,
+        0.19870704783607163,
+        -0.26226750084621225,
+        -0.029111148456733488,
+        0.008210888590017283,
+        -0.012677611010993512
+      ],
+      "slow_filtered_tool_std": [
+        0.03987771364001409,
+        0.03331368992929551,
+        0.20502810555504758,
+        0.002951674052381336,
+        0.004335894252040112,
+        0.0019288314328266703
+      ],
+      "mean_external_force_norm_n": 0.3282203080615202,
+      "mean_external_torque_norm_nm": 0.032937071867142904,
+      "maximum_slow_force_norm_n": 0.8523692701081137,
+      "state_counts": {
+        "NO_CONTACT": 685
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 81.32507975676064,
+      "maximum_force_rate_n_s": 124.31212462646933,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 785,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 785,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 785
+      }
+    },
+    "8": {
+      "sample_count": 791,
+      "steady_sample_count": 691,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        -0.30631513783763653,
+        -0.3039786419079051,
+        0.45325977096005055,
+        -0.07533973838434832,
+        0.02814439071748273,
+        -0.054158024552622856
+      ],
+      "external_sensor_std": [
+        0.11760716406807106,
+        0.08243557879176945,
+        0.5241749876981782,
+        0.006560199490339732,
+        0.009971868922431341,
+        0.005001903888184868
+      ],
+      "external_sensor_rms": [
+        0.32808595237470023,
+        0.31494254223333845,
+        0.6926804544042792,
+        0.07562440159173488,
+        0.0298563392587318,
+        0.054388183081816296
+      ],
+      "slow_filtered_tool_mean": [
+        0.30812477417695056,
+        0.303671816397916,
+        0.45561408801130526,
+        0.07530412499472115,
+        -0.02819465278629814,
+        -0.05413663401282652
+      ],
+      "slow_filtered_tool_std": [
+        0.05800692062701702,
+        0.03714639703889411,
+        0.2701906070067666,
+        0.0029664214164458135,
+        0.0046404367726616425,
+        0.0022401009561452394
+      ],
+      "mean_external_force_norm_n": 0.6258405534762206,
+      "mean_external_torque_norm_nm": 0.09696016982309218,
+      "maximum_slow_force_norm_n": 1.4095807788021106,
+      "state_counts": {
+        "NO_CONTACT": 691
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 102.13896707275752,
+      "maximum_force_rate_n_s": 120.72780116453488,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 791,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 791,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 791
+      }
+    },
+    "9": {
+      "sample_count": 781,
+      "steady_sample_count": 681,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        -0.34516745425147505,
+        -0.44005830973912646,
+        0.32068923641428915,
+        -0.000490492110525304,
+        0.007826776006510485,
+        -0.07540826709412368
+      ],
+      "external_sensor_std": [
+        0.12205488694314584,
+        0.07995802730348987,
+        0.5148416585326482,
+        0.006510036225244608,
+        0.010525970554793759,
+        0.0051482627444449204
+      ],
+      "external_sensor_rms": [
+        0.366082082512841,
+        0.44725296423317445,
+        0.6062295729679305,
+        0.006523719898440152,
+        0.013110750651996341,
+        0.07558354606191367
+      ],
+      "slow_filtered_tool_mean": [
+        0.34329284170949576,
+        0.43992195054148014,
+        0.33100078811224126,
+        0.00046920942757293246,
+        -0.007636123278391944,
+        -0.0753254355686993
+      ],
+      "slow_filtered_tool_std": [
+        0.05647430270214184,
+        0.0386788468619235,
+        0.3085891751546771,
+        0.003457760216488003,
+        0.0055319156688359815,
+        0.0024096681414416234
+      ],
+      "mean_external_force_norm_n": 0.6446964198728583,
+      "mean_external_torque_norm_nm": 0.0758149441159543,
+      "maximum_slow_force_norm_n": 1.1661522567413023,
+      "state_counts": {
+        "NO_CONTACT": 681
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 86.79273431885571,
+      "maximum_force_rate_n_s": 108.56576128466362,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 781,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 781,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 781
+      }
+    },
+    "10": {
+      "sample_count": 784,
+      "steady_sample_count": 684,
+      "settling_samples_discarded": 100,
+      "external_sensor_mean": [
+        1.125366179035308,
+        0.14078084233221277,
+        -0.7086404456146584,
+        0.21959678166294866,
+        0.07817412702296644,
+        0.18394492268265764
+      ],
+      "external_sensor_std": [
+        0.1219170843103471,
+        0.07524336649284395,
+        0.47160156560977456,
+        0.006157834636069117,
+        0.010043794300313246,
+        0.004881868486632471
+      ],
+      "external_sensor_rms": [
+        1.1319412889798688,
+        0.15960116737761904,
+        0.8510312332095465,
+        0.2196829761431269,
+        0.07881576274819901,
+        0.18400959860183602
+      ],
+      "slow_filtered_tool_mean": [
+        -1.1260799880522319,
+        -0.14177790150098987,
+        -0.7192921614642878,
+        -0.2195870238945749,
+        -0.07830517501994069,
+        0.18392419340299568
+      ],
+      "slow_filtered_tool_std": [
+        0.057440197359551894,
+        0.033036735657892655,
+        0.2415709922923824,
+        0.0027803551474193645,
+        0.0041238010015772365,
+        0.002167247697139699
+      ],
+      "mean_external_force_norm_n": 1.337325526431481,
+      "mean_external_torque_norm_nm": 0.2969337893087557,
+      "maximum_slow_force_norm_n": 1.7359076282807453,
+      "state_counts": {
+        "NO_CONTACT": 684
+      },
+      "non_no_contact_frames": 0,
+      "mean_force_quality": 1.0,
+      "minimum_force_quality": 1.0,
+      "force_rate_percentile_99_n_s": 86.26036554477875,
+      "maximum_force_rate_n_s": 140.85284041000392,
+      "diagnostic_flag_counts": {
+        "TOOL_ORIGIN_TRANSLATION_UNCONFIRMED": 784,
+        "CAMERA_WRENCH_TRANSFORM_UNAVAILABLE": 784,
+        "LINE_OF_ACTION_FORCE_TOO_SMALL": 784
+      }
+    }
+  },
+  "checks": {
+    "calibration_valid": true,
+    "all_configured_retained_poses_present": true,
+    "retained_stationary_row_ratio_above_97_percent": true,
+    "zero_pose_gravity_direction_valid": true,
+    "retained_pose_means_below_contact_onset": true,
+    "no_false_contact_states_after_settling": true
+  },
+  "passed": true,
+  "limitations": [
+    "sensor-origin translation to the Nova5 tool origin is unmeasured",
+    "camera-frame wrench remains unavailable until camera extrinsics are calibrated",
+    "contact thresholds still require labelled real-contact tuning",
+    "the unlabelled impact-rate shortcut is disabled because static timestamp jitter caused false triggers",
+    "dynamic inertial and cable-force compensation are not part of stage 2"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pointBaseM": [-0.2906, 0.6310, 0.1388],
+  "pointBaseMm": [-290.6, 631.0, 138.8],
+  "frame": "robot_base",
+  "inputUnit": "m",
+  "source": "manual_base_coordinate",
+  "sourceDescription": "User-corrected Stage 7 robot-base coordinate; units are metres",
+  "fixtureIdentifier": "stage07_current_setup",
+  "recordedAtLocal": "2026-08-13 Asia/Shanghai",
+  "calibrationValid": false,
+  "boundsValidated": false,
+  "physicalMotionAuthorizedByThisRecord": false
+}
